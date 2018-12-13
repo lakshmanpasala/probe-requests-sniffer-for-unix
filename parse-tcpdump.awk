@@ -24,7 +24,7 @@ match($0, /Probe Request \(.*\)/, ssid) {
 	gsub(/(Probe Request \(|\))/, "", ssid[0])
 
 	# if there is a non-empty SSID
-	if (length(ssid[0]) != 0) {
+	#if (length(ssid[0]) != 0) {
 
 		# escape commas
 		# gsub(/,/, "\\,", ssid[0])
@@ -37,5 +37,5 @@ match($0, /Probe Request \(.*\)/, ssid) {
 		# print them to stdout
 		print TIMESTAMP " " STRENGTH " " DISTANCE"m" " " MAC " \"" SSID "\""
 		system("") # flush the buffer
-	}
+	#}
 }
