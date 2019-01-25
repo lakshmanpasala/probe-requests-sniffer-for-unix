@@ -1,0 +1,5 @@
+airmon-ng
+awk
+tee
+curl
+gcc

@@ -1,16 +1,21 @@
 #include <pcap.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <errno.h>
+#include <time.h>
 #include <math.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netinet/if_ether.h>
 #include "radiotap_iter.h"
+//#include "logger.h"
 #include <signal.h>
 #include <string.h>
 #include <getopt.h>
+#include <fcntl.h>
+#include <sys/stat.h>
 
 int global = 0;
 int verbose = 0;
@@ -26,6 +31,26 @@ float signalToDistance( int RSSI) {
     return pow(10, exp);
 }
 
+char* concatMAC(const char *s0, const char *s1, const char *s2, const char *s3, const char *s4, const char *s5) {
+    char *result = malloc(strlen(s0) + strlen(s1) + strlen(s2) + strlen(s3) + strlen(s4) + strlen(s5) + 1); // +1 for the null-terminator
+    // in real code you would check for errors in malloc here
+    strcpy(result, s0);
+    strcat(result, s1);
+    strcat(result, s2);
+    strcat(result, s3);
+    strcat(result, s4);
+    strcat(result, s5);
+    printf("MAC = %s", result);
+    return result;
+}
+long long current_timestamp() {
+    struct timeval te;
+    gettimeofday(&te, NULL); // get current time
+    long long milliseconds = te.tv_sec*1000LL + te.tv_usec/1000; // calculate milliseconds
+    fprintf(stdout, "TIMESTAMP=%lld", milliseconds);
+    printf("|"); //delimiter
+    return milliseconds;
+}
 int print_radiotap_header(const u_char *Buffer, int Size){
 	struct ieee80211_radiotap_iterator iter;
 	void *data = (void*)Buffer;
@@ -53,14 +78,19 @@ int print_radiotap_header(const u_char *Buffer, int Size){
 	offset = iter._max_length;
 	while (!(err = ieee80211_radiotap_iterator_next(&iter))) {
 		if (iter.this_arg_index == IEEE80211_RADIOTAP_DBM_ANTSIGNAL) {
-			printf("RSSI = %idBm", (int)iter.this_arg[0] - 256);
-			printf("\n");
-			printf("DISTANCE = %.02fm",  signalToDistance((int)iter.this_arg[0] - 256));
-			printf("\n");
+      int rssi = (int)iter.this_arg[0] - 256;
+      float distance = signalToDistance(rssi);
+			printf("RSSI=%idBm", rssi);
+      printf("|"); //delimiter
+      //logger("RSSI", (char *) rssi);
+			printf("DISTANCE=%.02fm",  signalToDistance((int)iter.this_arg[0] - 256));
+      printf("|"); //delimiter
+      //fprintf(stdout, "%u\n", (unsigned)time(NULL));  //for 32 bit systems
+      //fprintf(stdout, "TIMESTAMP=%lu\n", (unsigned long)time(NULL)); //for 64 bit systems
+      current_timestamp();
 			//FIX ME
 			//ssid not being parsed correctly
-			printf("SSID = %s", ssid);
-			printf("\n");
+			//printf("SSID = %s", ssid);
 		}
 	}
 
@@ -77,7 +107,11 @@ void print_ethernet_header(const u_char *Buffer, int Size){
 	const u_char *destination_mac_addr;
 	destination_mac_addr = Buffer + 4;
 	source_mac_addr = Buffer + 10;
-	fprintf(stdout,"MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",source_mac_addr[0],source_mac_addr[1],source_mac_addr[2],source_mac_addr[3],source_mac_addr[4],source_mac_addr[5]);
+  //char * MAC  = concatMAC((char *) source_mac_addr[0], (char *) source_mac_addr[1], (char *) source_mac_addr[2], (char *) source_mac_addr[3], (char *) source_mac_addr[4], (char *) source_mac_addr[5]);
+  //logger("MAC", MAC);
+
+	fprintf(stdout,"MAC=%02X:%02X:%02X:%02X:%02X:%02X",source_mac_addr[0],source_mac_addr[1],source_mac_addr[2],source_mac_addr[3],source_mac_addr[4],source_mac_addr[5]);
+  printf("\n"); //delimiter
 }
 
 void my_callback(u_char *args, const struct pcap_pkthdr* header, const u_char* packet)
@@ -88,7 +122,7 @@ void my_callback(u_char *args, const struct pcap_pkthdr* header, const u_char* p
 	if(offset > 0)
 		print_ethernet_header(packet + offset, size);
 	global++;
-	fprintf(stdout,"/*-----------------------------------Pkt #%i-----------------------------------*/\n", global);
+	//fprintf(stdout,"/*-----------------------------------Pkt #%i-----------------------------------*/\n", global);
 	fflush(stdout);
 
 }
@@ -96,7 +130,7 @@ void my_callback(u_char *args, const struct pcap_pkthdr* header, const u_char* p
 
 int main(int argc,char **argv)
 {
-	printf("Start\n");
+	printf("log=");
 	fflush(stdout);
 	int i;
 	char *dev = NULL;
@@ -135,7 +169,7 @@ int main(int argc,char **argv)
 	/* Now get a device */
 	//dev = pcap_lookupdev(errbuf);
 	//dev = "wlp2s0mon";
-	printf("Interface: %s\n", dev);
+	//printf("Interface: %s\n", dev);
 
 	if(dev == NULL) {
 		printf("Missing interface! Add it using -i [interface]\n");
